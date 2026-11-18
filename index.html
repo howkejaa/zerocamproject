@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#080A0F" />
+  <title>ZeroCam 1.0 — AI Computational Camera</title>
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- MediaPipe Selfie Segmentation (AI Portrait Engine dengan Auto-Fallback) -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous" defer></script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Screen Flash Overlay (untuk Kamera Depan / Perangkat Tanpa LED Torch) -->
+  <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
+
+  <main class="app-shell">
+    <!-- TOP BAR: Quick Settings -->
+    <header class="top-bar">
+      <div class="brand-badge">
+        <span class="status-dot"></span>
+        <span class="brand-title">ZEROCAM <span class="brand-ver">1.0</span></span>
+      </div>
+
+      <div class="top-controls">
+        <!-- Flash Toggle -->
+        <button id="btnFlash" class="icon-pill" title="Flash Kamera" aria-label="Toggle Flash">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span id="flashLabel">OFF</span>
+        </button>
+
+        <!-- Timer Toggle -->
+        <button id="btnTimer" class="icon-pill" title="Timer Jepret" aria-label="Toggle Timer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="13" r="8"/>
+            <path d="M12 9v4l2.5 2.5M9 2h6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span id="timerLabel">OFF</span>
+        </button>
+
+        <!-- Aspect Ratio Toggle -->
+        <button id="btnRatio" class="icon-pill active-blue" title="Rasio Foto" aria-label="Ganti Rasio Foto">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <rect x="3" y="5" width="18" height="14" rx="2"/>
+          </svg>
+          <span id="ratioLabel">4:3</span>
+        </button>
+
+        <!-- Grid 3x3 Toggle -->
+        <button id="btnGrid" class="icon-pill icon-only" title="Grid Komposisi 3x3" aria-label="Toggle Grid">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M3 9h18M3 15h18M9 3v18M15 3v18" stroke-linecap="round"/>
+          </svg>
+        </button>
+
+        <!-- Settings / Credits & Camera Info Toggle -->
+        <button id="btnSettings" class="icon-pill icon-only" title="Informasi & Credit Kamera" aria-label="Informasi dan Credit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- VIEWFINDER AREA -->
+    <section class="viewfinder-stage">
+      <div id="viewfinderFrame" class="viewfinder-frame ratio-4-3">
+        <video id="cameraStream" autoplay playsinline muted></video>
+
+        <!-- Grid Overlay 3x3 -->
+        <div id="gridOverlay" class="grid-overlay hidden" aria-hidden="true">
+          <span></span><span></span><span></span>
+          <span></span><span></span><span></span>
+          <span></span><span></span><span></span>
+        </div>
+
+        <!-- Focus Reticle -->
+        <div id="focusReticle" class="focus-reticle hidden" aria-hidden="true"></div>
+
+        <!-- Countdown Overlay -->
+        <div id="countdownOverlay" class="countdown-overlay hidden">
+          <span id="countdownNumber">3</span>
+        </div>
+
+        <!-- AI Processing Overlay -->
+        <div id="processingOverlay" class="processing-overlay hidden">
+          <div class="ai-spinner"></div>
+          <p id="processingText">AI Frame-Lock HD Processing...</p>
+        </div>
+
+        <!-- Live Telemetry HUD -->
+        <div class="hud-telemetry">
+          <span id="hudModeBadge">AI HDR+</span>
+          <span class="hud-sep">•</span>
+          <span id="hudResBadge">AUTO HD</span>
+          <span class="hud-sep">•</span>
+          <span id="hudLutBadge">NATURAL</span>
+        </div>
+
+        <!-- Zoom Selector Pills -->
+        <div class="zoom-bar" role="group" aria-label="Zoom Kamera">
+          <button class="zoom-btn active" data-zoom="1">1.0x</button>
+          <button class="zoom-btn" data-zoom="1.5">1.5x</button>
+          <button class="zoom-btn" data-zoom="2">2.0x</button>
+        </div>
+
+        <!-- Camera Error / Permission Prompt -->
+        <div id="cameraError" class="camera-error hidden">
+          <div class="error-card">
+            <h3>Akses Kamera Diperlukan</h3>
+            <p id="cameraErrorMsg">Izinkan akses kamera di browser Anda untuk mulai memotret dengan ZeroCam 1.0.</p>
+            <button id="btnRetryCamera" class="primary-btn">Aktifkan Kamera</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BOTTOM DOCK: Color Profiles, Camera Modes & Shutter -->
+    <footer class="bottom-dock">
+      <!-- Color Profiles (LUTs) -->
+      <div class="lut-strip" role="group" aria-label="Color Profile">
+        <button class="lut-pill active" data-lut="natural">Natural</button>
+        <button class="lut-pill" data-lut="leica">Leica</button>
+        <button class="lut-pill" data-lut="vivid">Vivid</button>
+        <button class="lut-pill" data-lut="mono">Mono</button>
+      </div>
+
+      <!-- AI Camera Modes -->
+      <div class="mode-selector" role="tablist" aria-label="Mode Kamera AI">
+        <button class="mode-btn" data-mode="night" role="tab">NIGHT SIGHT</button>
+        <button class="mode-btn active" data-mode="hdr" role="tab">HDR+</button>
+        <button class="mode-btn" data-mode="portrait" role="tab">PORTRAIT</button>
+      </div>
+
+      <!-- Main Shutter Row -->
+      <div class="shutter-row">
+        <!-- Mini Gallery Button -->
+        <button id="btnGallery" class="gallery-thumb-btn" title="Galeri Hasil Foto" aria-label="Buka Galeri">
+          <img id="latestThumbImg" class="hidden" alt="Foto Terakhir" />
+          <svg id="galleryPlaceholderIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+            <rect x="3" y="3" width="18" height="18" rx="4"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <path d="M21 15l-5-5L5 21" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span id="galleryCountBadge" class="gallery-badge hidden">0</span>
+        </button>
+
+        <!-- Primary Shutter Button -->
+        <button id="btnShutter" class="shutter-btn" title="Ambil Foto HD" aria-label="Ambil Foto">
+          <span class="shutter-inner"></span>
+        </button>
+
+        <!-- Switch Camera (Front / Rear) -->
+        <button id="btnSwitchCam" class="switch-cam-btn" title="Ganti Kamera Depan/Belakang" aria-label="Ganti Kamera">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M20 11A8.1 8.1 0 0 0 4.5 9M4 5v4h4" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+    </footer>
+  </main>
+
+  <!-- GALLERY & BEFORE/AFTER COMPARISON MODAL -->
+  <div id="galleryModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-label="Galeri ZeroCam">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <div>
+          <h2>ZeroCam Studio Gallery</h2>
+          <p class="modal-sub">Geser pembanding untuk melihat peningkatan AI</p>
+        </div>
+        <button id="btnCloseGallery" class="close-modal-btn" aria-label="Tutup Galeri">&times;</button>
+      </div>
+
+      <div id="galleryEmptyState" class="gallery-empty">
+        <p>Belum ada foto yang dijepret sesi ini.</p>
+      </div>
+
+      <div id="galleryViewer" class="gallery-viewer hidden">
+        <!-- Before / After Interactive Comparison -->
+        <div id="compareContainer" class="compare-container">
+          <img id="compareAfterImg" class="compare-img" alt="Hasil ZeroCam AI" />
+          <div id="compareBeforeWrapper" class="compare-before-wrapper">
+            <img id="compareBeforeImg" class="compare-img" alt="Kamera Asli" />
+          </div>
+          <div id="compareDivider" class="compare-divider">
+            <div class="compare-handle">⇄</div>
+          </div>
+          <span class="compare-tag tag-before">RAW</span>
+          <span class="compare-tag tag-after">ZEROCAM AI</span>
+        </div>
+
+        <!-- Thumbnail Strip -->
+        <div id="thumbStrip" class="thumb-strip"></div>
+
+        <!-- Action Footer -->
+        <div class="modal-actions">
+          <span id="photoMetaInfo" class="photo-meta">HDR+ • Natural</span>
+          <button id="btnRedownload" class="primary-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Download HD Lagi
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS / CREDITS & CAMERA INFO MODAL -->
+  <div id="infoModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-label="Informasi dan Credit ZeroCam">
+    <div class="modal-panel info-panel">
+      <div class="modal-header">
+        <div class="info-title-group">
+          <span class="info-pill-tag">SYSTEM &amp; CREDITS</span>
+          <h2>ZeroCam 1.0</h2>
+          <p class="modal-sub">AI Computational Web Optics</p>
+        </div>
+        <button id="btnCloseInfo" class="close-modal-btn" aria-label="Tutup Informasi">&times;</button>
+      </div>
+
+      <!-- Developer / Creator Credit Card -->
+      <div class="credit-card">
+        <div class="credit-icon-box" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="22" height="22">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+        </div>
+        <div class="credit-details">
+          <span class="credit-label">CREATED &amp; ENGINEERED BY</span>
+          <strong class="credit-name">HowKeJaa</strong>
+          <a href="https://t.me/howkejaa" target="_blank" rel="noopener noreferrer" class="telegram-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14">
+              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>Telegram: @howkejaa</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Camera Engine Overview -->
+      <div class="info-section">
+        <h3 class="info-section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+          Tentang Teknologi Kamera
+        </h3>
+        <p class="info-desc">
+          <strong>ZeroCam 1.0</strong> adalah kamera berbasis web dengan pemrosesan <em>AI Computational Photography</em> langsung di perangkat Anda. Saat tombol jepret ditekan, kamera langsung mengunci titik momen (<em>Zero-Blur Frame Lock</em>) sehingga hasil foto tetap tajam bebas guncangan tanpa perlu menahan tangan terlalu lama.
+        </p>
+      </div>
+
+      <!-- Feature List -->
+      <div class="info-section">
+        <h3 class="info-section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Fitur Utama ZeroCam 1.0
+        </h3>
+
+        <div class="feature-grid">
+          <div class="feature-item">
+            <div class="feature-head">
+              <span class="feature-dot"></span>
+              <strong>AI HDR+ &amp; Skin Refinement</strong>
+            </div>
+            <p>Menyeimbangkan cahaya terang-gelap, menghaluskan tekstur kulit secara selektif, serta mempertajam detail mata dan objek.</p>
+          </div>
+
+          <div class="feature-item">
+            <div class="feature-head">
+              <span class="feature-dot"></span>
+              <strong>AI Portrait Depth Bokeh</strong>
+            </div>
+            <p>Segmentasi subjek otomatis untuk memisahkan objek utama dengan efek blur latar belakang yang natural.</p>
+          </div>
+
+          <div class="feature-item">
+            <div class="feature-head">
+              <span class="feature-dot"></span>
+              <strong>Night Sight Low-Light Boost</strong>
+            </div>
+            <p>Meningkatkan pencahayaan pada area gelap serta meredam bintik noise saat memotret di kondisi minim cahaya.</p>
+          </div>
+
+          <div class="feature-item">
+            <div class="feature-head">
+              <span class="feature-dot"></span>
+              <strong>Adaptive Dual Flash</strong>
+            </div>
+            <p>Otomatis mengaktifkan LED Flash hardware pada kamera belakang HP dan Screen Flash lembut pada kamera depan.</p>
+          </div>
+
+          <div class="feature-item">
+            <div class="feature-head">
+              <span class="feature-dot"></span>
+              <strong>4 Color Profile (LUTs)</strong>
+            </div>
+            <p>Pilihan karakter warna instan: <em>Natural</em>, <em>Leica Contrast</em>, <em>Vivid</em>, dan <em>Monochrome</em>.</p>
+          </div>
+
+          <div class="feature-item">
+            <div class="feature-head">
+              <span class="feature-dot"></span>
+              <strong>Auto-Save HD &amp; Studio Compare</strong>
+            </div>
+            <p>Foto otomatis terunduh dalam resolusi HD lengkap dengan watermark permanen serta fitur geser perbandingan RAW vs AI.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-footer">
+        <span>ZeroCam 1.0 • Build by @howkejaa</span>
+        <span>100% Client-Side Privacy</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast hidden" role="status">Foto HD Tersimpan Otomatis</div>
+
+  <script src="app.js"></script>
+</body>
+</html>
